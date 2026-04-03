@@ -1,16 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ScratchCell from './ScratchCell';
 
+const SYMBOLS = ['🍒', '⭐', '💎', '🍀', '🔔', '7️⃣'];
+
 export default function Ticket({ currentGrid, gameActive, handleGameEnd, mise, forceReveal, ticketId, startGame }) {
   const [scratchedCount, setScratchedCount] = useState(0);
   const scratchedSet = useRef(new Set());
-  const SYMBOLS = ['🍒', '⭐', '💎', '🍀', '🔔', '7️⃣'];
-
-  // Nettoyage au changement de ticket
-  useEffect(() => {
-    setScratchedCount(0);
-    scratchedSet.current.clear();
-  }, [ticketId]);
 
   // NOUVEAU : C'est ici qu'on surveille l'avancement de manière sécurisée
   useEffect(() => {

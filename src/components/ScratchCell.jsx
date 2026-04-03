@@ -1,8 +1,7 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect } from 'react';
 
 export default function ScratchCell({ symbol, index, onScratchComplete, forceReveal, ticketId, onFirstScratch }) {
   const canvasRef = useRef(null);
-  const [isRevealed, setIsRevealed] = useState(false);
   const isDrawing = useRef(false);
   
   // NOUVEAU : Cette référence garde en mémoire si la case est déjà validée, 
@@ -19,7 +18,6 @@ export default function ScratchCell({ symbol, index, onScratchComplete, forceRev
 
   // --- 1. DESSIN INITIAL DU MASQUE & DU '?' ---
   useEffect(() => {
-      setIsRevealed(false);
       hasValidated.current = false; 
 
       const initCanvas = () => {
@@ -65,7 +63,6 @@ export default function ScratchCell({ symbol, index, onScratchComplete, forceRev
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        setIsRevealed(true);
         hasValidated.current = true;
         onScratchCompleteRef.current(index); 
     }
@@ -108,7 +105,6 @@ export default function ScratchCell({ symbol, index, onScratchComplete, forceRev
       if (transparentPixels / (w * h) > 0.15) {
         console.log(`Case ${index} validée !`);
         hasValidated.current = true; // On marque la case comme validée
-        setIsRevealed(true);
         onScratchCompleteRef.current(index); // On prévient le Ticket que c'est bon
       }
     };

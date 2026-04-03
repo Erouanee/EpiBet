@@ -1,7 +1,21 @@
 import React, { useState } from 'react';
 import Ticket from './Ticket';
 
-export default function GameZone({ mise, setMise, jackpot, gameActive, startGame, prepareNextTicket, ticketId, currentGrid, handleGameEnd, gainsMap }) {
+export default function GameZone({
+  mise,
+  setMise,
+  jackpot,
+  gameActive,
+  startGame,
+  prepareNextTicket,
+  ticketId,
+  currentGrid,
+  handleGameEnd,
+  gainsMap,
+  selectedGame,
+  isRemoteMode,
+  loading,
+}) {
   const [forceReveal, setForceReveal] = useState(false);
   const [lastResult, setLastResult] = useState(null);
 
@@ -40,6 +54,22 @@ export default function GameZone({ mise, setMise, jackpot, gameActive, startGame
 
   return (
     <div className="game-zone">
+      <div className="game-zone-header">
+        <div>
+          <div className="section-title">Partie live</div>
+          <div className="game-zone-title">
+            {selectedGame ? selectedGame.name : 'Borne démo'}
+          </div>
+        </div>
+        <div className="game-zone-badges">
+          <span className={`game-zone-chip ${isRemoteMode ? 'api' : 'demo'}`}>
+            {isRemoteMode ? 'Synchronisé API' : 'Mode démo'}
+          </span>
+          <span className="game-zone-chip gold">Jackpot {jackpot} 🪙</span>
+          {loading.play ? <span className="game-zone-chip muted">Envoi en cours...</span> : null}
+        </div>
+      </div>
+
       <div>
         <div className="mise-label">Choisir la mise</div>
         <div className="mise-selector">
@@ -49,6 +79,7 @@ export default function GameZone({ mise, setMise, jackpot, gameActive, startGame
       </div>
 
       <Ticket 
+        key={ticketId}
         currentGrid={currentGrid} 
         gameActive={gameActive} 
         handleGameEnd={onGameEndIntercept} 

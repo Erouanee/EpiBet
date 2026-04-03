@@ -1,16 +1,41 @@
-# React + Vite
+# EpiBet Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Dashboard React/Vite connecté à l’API EpiBet (`NightKiiro/API-Hackathon`).
 
-Currently, two official plugins are available:
+## Fonctionnement
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Le front permet de :
 
-## React Compiler
+- enregistrer ou recharger un créateur via `POST /auth/register`
+- charger une clé API via `X-API-Key`
+- créer un jeu via `POST /games`
+- envoyer des transactions `income` et `payout` via `POST /games/:id/transactions`
+- consulter les stats publiques, le classement et les alertes
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Le ticket à gratter reste disponible en mode démo si aucune clé API n’est configurée.
 
-## Expanding the ESLint configuration
+## Configuration
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Par défaut, l’app vise `http://localhost:8000`. Pour pointer vers une autre API, crée un fichier `.env` à la racine du projet avec :
+
+```bash
+VITE_EPIBET_API_URL=http://localhost:8000
+```
+
+## Lancement
+
+```bash
+npm install
+npm run dev
+```
+
+## Build
+
+```bash
+npm run build
+```
+
+## Notes
+
+- La session API, l’email et le jeu sélectionné sont conservés dans `localStorage`.
+- Si l’API est indisponible, le mode démo continue de fonctionner pour tester le ticket localement.
