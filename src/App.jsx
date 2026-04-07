@@ -1,49 +1,24 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Header from './components/Header';
 import GameZone from './components/GameZone';
 import History from './components/History';
+import GainsPanel from './components/GainsPanel';
 import { epibetApi } from './lib/epibetApi';
 import './App.css';
 
-const SYMBOLS = ['🍒', '⭐', '🍀', '🔔', '💎', '💰'];
-const GAINS_MAP = { '🍒': 2, '⭐': 3, '🍀': 4, '🔔': 5, '💎': 8, '💰': 10 };
-const WEIGHTS = [35, 25, 20, 12, 6, 2];
-
-const weightedRandom = () => {
-  const total = WEIGHTS.reduce((a, b) => a + b, 0);
-  let r = Math.random() * total;
-  for (let i = 0; i < SYMBOLS.length; i += 1) {
-    r -= WEIGHTS[i];
-    if (r <= 0) return SYMBOLS[i];
-  }
-  return SYMBOLS[0];
-};
-
-const hasThreeIdentical = (syms) => SYMBOLS.some((symbol) => syms.filter((value) => value === symbol).length >= 3);
-
-const generateGrid = (isWin) => {
-  let syms = Array.from({ length: 9 }, () => weightedRandom());
-
-  if (isWin) {
-    const winner = weightedRandom();
-    const positions = [...Array(9).keys()].sort(() => Math.random() - 0.5).slice(0, 3);
-    positions.forEach((position) => {
-      syms[position] = winner;
-    });
-  } else {
-    while (hasThreeIdentical(syms)) {
-      syms = Array.from({ length: 9 }, () => weightedRandom());
-    }
-  }
-
-  return syms;
-};
+const SLOT_SYMBOLS = ['🍒', '⭐', '🍀', '🔔', '💎', '7️⃣'];
+const GAINS_MAP = { '🍒': 2, '⭐': 3, '🍀': 4, '🔔': 6, '💎': 9, '7️⃣': 12 };
+const WIN_SOUND_SRC = encodeURI('win.mp3');
 
 const STORAGE_KEYS = {
   apiKey: 'epibet.apiKey',
   email: 'epibet.email',
   selectedGameId: 'epibet.selectedGameId',
+  musicVolume: 'epibet.musicVolume',
+  musicPlaying: 'epibet.musicPlaying',
 };
+
+const MUSIC_VOLUME_STEPS = [0, 0.25, 0.5, 0.75, 1];
 
 const readStorage = (key) => {
   if (typeof window === 'undefined') {
@@ -84,6 +59,9 @@ const persistSession = (nextApiKey, nextEmail, nextGameId) => {
 };
 
 export default function App() {
+  const backgroundMusicRef = useRef(null);
+  const winSoundRef = useRef(null);
+  const coinRainTimeoutRef = useRef(null);
   const [apiKey, setApiKey] = useState(() => readStorage(STORAGE_KEYS.apiKey));
   const [creatorEmail, setCreatorEmail] = useState(() => readStorage(STORAGE_KEYS.email));
   const [selectedGameId, setSelectedGameId] = useState(() => {
@@ -102,7 +80,8 @@ export default function App() {
   const [jackpot, setJackpot] = useState(30);
   const [mise, setMise] = useState(1);
   const [ticketId, setTicketId] = useState(1);
-  const [currentGrid, setCurrentGrid] = useState(Array(9).fill(''));
+  const [spinId, setSpinId] = useState(0);
+  const [spinMode, setSpinMode] = useState('manual');
   const [gameActive, setGameActive] = useState(false);
   const [stats, setStats] = useState({ totalGames: 0, totalProfit: 0, totalWins: 0 });
   const [history, setHistory] = useState([]);
@@ -119,6 +98,17 @@ export default function App() {
   const [publicStats, setPublicStats] = useState(null);
   const [ranking, setRanking] = useState([]);
   const [alerts, setAlerts] = useState([]);
+  const [musicVolume, setMusicVolume] = useState(() => {
+    const stored = Number(readStorage(STORAGE_KEYS.musicVolume));
+    if (Number.isNaN(stored) || stored < 0 || stored > 1) {
+      return 0.45;
+    }
+    return stored;
+  });
+  const [musicPlaying, setMusicPlaying] = useState(() => readStorage(STORAGE_KEYS.musicPlaying) !== 'false');
+  const [musicBlocked, setMusicBlocked] = useState(false);
+  const [showCoinRain, setShowCoinRain] = useState(false);
+  const [coinRainBurst, setCoinRainBurst] = useState(0);
 
   const selectedGame = useMemo(() => games.find((game) => game.id === selectedGameId) || null, [games, selectedGameId]);
   const isRemoteMode = Boolean(apiKey && selectedGame);
@@ -209,6 +199,89 @@ export default function App() {
   useEffect(() => {
     persistSession(apiKey, creatorEmail, selectedGameId);
   }, [apiKey, creatorEmail, selectedGameId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.localStorage.setItem(STORAGE_KEYS.musicVolume, String(musicVolume));
+    window.localStorage.setItem(STORAGE_KEYS.musicPlaying, String(musicPlaying));
+  }, [musicVolume, musicPlaying]);
+
+  useEffect(() => {
+    const audio = backgroundMusicRef.current;
+    if (!audio) {
+      return;
+    }
+
+    audio.muted = musicVolume === 0;
+    audio.volume = musicVolume;
+
+    if (!musicPlaying) {
+      audio.pause();
+      setMusicBlocked(false);
+      return;
+    }
+
+    const playPromise = audio.play();
+
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise
+        .then(() => {
+          setMusicBlocked(false);
+        })
+        .catch(() => {
+          setMusicBlocked(true);
+        });
+    }
+  }, [musicVolume, musicPlaying]);
+
+  const handleCycleVolume = () => {
+    setMusicVolume((currentVolume) => {
+      const currentIndex = MUSIC_VOLUME_STEPS.findIndex((step) => Math.abs(step - currentVolume) < 0.001);
+      const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % MUSIC_VOLUME_STEPS.length : 2;
+      return MUSIC_VOLUME_STEPS[nextIndex];
+    });
+  };
+
+  const musicVolumeLabel = musicVolume === 0 ? 'Muet' : `${Math.round(musicVolume * 100)}%`;
+
+  const playWinSound = () => {
+    const audio = winSoundRef.current;
+    if (!audio) {
+      return;
+    }
+
+    audio.pause();
+    audio.currentTime = 0;
+    audio.volume = 0.9;
+
+    const playPromise = audio.play();
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise.catch(() => {});
+    }
+  };
+
+  const triggerCoinRain = () => {
+    setCoinRainBurst((previous) => previous + 1);
+    setShowCoinRain(true);
+
+    if (coinRainTimeoutRef.current) {
+      clearTimeout(coinRainTimeoutRef.current);
+    }
+
+    coinRainTimeoutRef.current = setTimeout(() => {
+      setShowCoinRain(false);
+      coinRainTimeoutRef.current = null;
+    }, 1900);
+  };
+
+  useEffect(() => () => {
+    if (coinRainTimeoutRef.current) {
+      clearTimeout(coinRainTimeoutRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     if (!apiKey) {
@@ -347,14 +420,20 @@ export default function App() {
   };
 
   const prepareNextTicket = () => {
-    setCurrentGrid(Array(9).fill(''));
     setTicketId((previous) => previous + 1);
   };
 
   const handleGameEnd = async (isWin, winSym) => {
     setGameActive(false);
 
-    const gain = isWin ? mise * GAINS_MAP[winSym] : 0;
+    if (isWin) {
+      playWinSound();
+      triggerCoinRain();
+    }
+
+    const theoreticalGain = isWin ? mise * GAINS_MAP[winSym] : 0;
+    const maxPayout = Math.max(0, activeJackpot + mise);
+    const gain = Math.min(theoreticalGain, maxPayout);
     const profitStand = mise - gain;
     const historyItem = {
       id: Date.now(),
@@ -375,6 +454,11 @@ export default function App() {
         totalWins: isWin ? previous.totalWins + 1 : previous.totalWins,
       }));
       appendHistory(historyItem);
+
+      if (historyItem.jackpotResult <= 0) {
+        setNotice('Banque fermée: jackpot à 0 🪙.');
+      }
+
       return;
     }
 
@@ -400,14 +484,22 @@ export default function App() {
 
       const nextJackpot = latestGame?.current_jackpot ?? historyItem.jackpotResult;
       setJackpot(nextJackpot);
-      setGames((previous) => previous.map((game) => (game.id === selectedGame.id ? { ...game, current_jackpot: nextJackpot, status: latestGame?.status || game.status } : game)));
+      setGames((previous) => previous.map((game) => (game.id === selectedGame.id
+        ? {
+          ...game,
+          current_jackpot: nextJackpot,
+          status: nextJackpot <= 0 ? 'closed' : (latestGame?.status || game.status),
+        }
+        : game)));
       setStats((previous) => ({
         totalGames: previous.totalGames + 1,
         totalProfit: previous.totalProfit + profitStand,
         totalWins: isWin ? previous.totalWins + 1 : previous.totalWins,
       }));
       appendHistory(historyItem);
-      setNotice(isWin ? 'Victoire enregistrée sur l’API.' : 'Défaite enregistrée sur l’API.');
+      setNotice(nextJackpot <= 0
+        ? 'Banque fermée: jackpot à 0 🪙.'
+        : (isWin ? 'Victoire enregistrée sur l’API.' : 'Défaite enregistrée sur l’API.'));
 
       await Promise.all([
         refreshRemoteData(apiKey, selectedGame.id),
@@ -427,7 +519,7 @@ export default function App() {
     }
   };
 
-  const startGame = () => {
+  const startAutoGame = () => {
     if (gameActive) {
       return;
     }
@@ -443,17 +535,56 @@ export default function App() {
     }
 
     setError('');
+    setSpinMode('auto');
+    setSpinId((previous) => previous + 1);
+    setGameActive(true);
+  };
 
-    const minGain = mise * Math.min(...Object.values(GAINS_MAP));
-    const canPay = activeJackpot >= minGain;
-    const isWin = Math.random() < 0.3 && canPay;
+  const startManualGame = () => {
+    if (gameActive) {
+      return;
+    }
 
-    setCurrentGrid(generateGrid(isWin));
+    if (isRemoteMode && selectedGame?.status !== 'active') {
+      setError('Ce jeu est fermé. Crée-en un autre pour continuer.');
+      return;
+    }
+
+    if (activeJackpot < mise) {
+      setError('Jackpot insuffisant pour lancer une partie.');
+      return;
+    }
+
+    setError('');
+    setSpinMode('manual');
+    setSpinId((previous) => previous + 1);
     setGameActive(true);
   };
 
   return (
     <div className="app-container">
+      {showCoinRain ? (
+        <div className="coin-rain-layer" aria-hidden="true">
+          {Array.from({ length: 32 }).map((_, index) => (
+            <span
+              key={`${coinRainBurst}-${index}`}
+              className="coin-rain-coin"
+              style={{
+                left: `${2 + (index * 96) / 31}%`,
+                animationDelay: `${(index % 8) * 0.08}s`,
+                animationDuration: `${1.2 + (index % 6) * 0.18}s`,
+                '--drift': `${(index % 2 === 0 ? -1 : 1) * (12 + (index % 7) * 7)}px`,
+              }}
+            >
+              🪙
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      <audio ref={backgroundMusicRef} src="/casino.mp3" loop preload="auto" />
+      <audio ref={winSoundRef} src={WIN_SOUND_SRC} preload="auto" />
+
       <Header
         apiBaseUrl={epibetApi.baseUrl}
         apiHealth={apiHealth}
@@ -477,23 +608,32 @@ export default function App() {
           setSelectedGameId(gameId);
           persistSession(apiKey, creatorEmail, gameId);
         }}
+        musicPlaying={musicPlaying}
+        musicVolumeLabel={musicVolumeLabel}
+        onToggleMusic={() => setMusicPlaying((previous) => !previous)}
+        onCycleVolume={handleCycleVolume}
       />
 
       <main className="app-main">
+        <GainsPanel gainsMap={GAINS_MAP} mise={mise} />
+
         <GameZone
           mise={mise}
           setMise={setMise}
           jackpot={activeJackpot}
           gameActive={gameActive}
-          startGame={startGame}
           prepareNextTicket={prepareNextTicket}
           ticketId={ticketId}
-          currentGrid={currentGrid}
+          spinId={spinId}
+          spinMode={spinMode}
           handleGameEnd={handleGameEnd}
           gainsMap={GAINS_MAP}
+          symbols={SLOT_SYMBOLS}
           selectedGame={selectedGame}
           isRemoteMode={isRemoteMode}
           loading={loading}
+          onStartManual={startManualGame}
+          onStartAuto={startAutoGame}
         />
 
         <History
@@ -509,6 +649,8 @@ export default function App() {
           apiHealth={apiHealth}
         />
       </main>
+
+      {musicBlocked ? <div className="audio-toast">Le navigateur bloque l'autoplay. Clique sur Musique.</div> : null}
     </div>
   );
 }

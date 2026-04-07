@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_EPIBET_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_EPIBET_API_URL || 'https://api-hackathon-production.up.railway.app';
 
 async function request(path, { method = 'GET', body, apiKey } = {}) {
   const headers = {

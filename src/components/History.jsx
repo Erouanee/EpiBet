@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 const formatNumber = (value) => Number(value || 0).toLocaleString('fr-FR');
 
@@ -14,13 +14,32 @@ export default function History({
   loading,
   apiHealth,
 }) {
+  const [showDetails, setShowDetails] = useState(false);
   const overviewSummary = creatorOverview?.summary || null;
   const overviewGames = creatorOverview?.games || [];
 
   return (
     <div className="history-zone">
-      <div className="history-title">Pilotage temps réel</div>
+      <div className="history-head">
+        <div className="history-title">Historique des parties</div>
+        <button
+          type="button"
+          className="history-toggle"
+          onClick={() => setShowDetails((previous) => !previous)}
+        >
+          {showDetails ? 'Masquer les menus' : 'Afficher les menus'}
+        </button>
+      </div>
 
+      <div className="stats-bar">
+        <div className="stat-box">
+          <div className="stat-label">Victoires</div>
+          <div className="stat-value">{stats.totalWins}</div>
+        </div>
+      </div>
+
+      {showDetails ? (
+      <>
       <div className="status-strip">
         <div className="status-card">
           <div className="stat-label">API</div>
@@ -37,17 +56,6 @@ export default function History({
         <div className="status-card">
           <div className="stat-label">Sync</div>
           <div className="stat-value">{loading.refresh ? 'sync' : 'ok'}</div>
-        </div>
-      </div>
-
-      <div className="stats-bar">
-        <div className="stat-box">
-          <div className="stat-label">Parties</div>
-          <div className="stat-value gold">{stats.totalGames}</div>
-        </div>
-        <div className="stat-box">
-          <div className="stat-label">Victoires</div>
-          <div className="stat-value">{stats.totalWins}</div>
         </div>
       </div>
 
@@ -161,6 +169,8 @@ export default function History({
           </div>
         </section>
       </div>
+      </>
+      ) : null}
 
       <div className="history-list">
         {history.length === 0 ? (
@@ -182,7 +192,7 @@ export default function History({
         )}
       </div>
 
-      {loading.refresh ? <div className="history-footnote">Synchronisation des données API en cours...</div> : null}
+      {showDetails && loading.refresh ? <div className="history-footnote">Synchronisation des données API en cours...</div> : null}
     </div>
   );
 }

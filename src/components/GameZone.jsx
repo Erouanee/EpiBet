@@ -6,23 +6,27 @@ export default function GameZone({
   setMise,
   jackpot,
   gameActive,
-  startGame,
+  onStartManual,
+  onStartAuto,
   prepareNextTicket,
   ticketId,
-  currentGrid,
+  spinId,
+  spinMode,
   handleGameEnd,
   gainsMap,
-  selectedGame,
+  symbols,
   isRemoteMode,
   loading,
 }) {
-  const [forceReveal, setForceReveal] = useState(false);
   const [lastResult, setLastResult] = useState(null);
 
   const onGameEndIntercept = (isWin, winSym) => {
-    setForceReveal(false);
     if (isWin) {
-      setLastResult({ type: 'win', msg: `🎉 GAGNÉ ! → +${mise * gainsMap[winSym]} 🪙` });
+      const theoreticalGain = mise * gainsMap[winSym];
+      const maxPayout = Math.max(0, jackpot + mise);
+      const paidGain = Math.min(theoreticalGain, maxPayout);
+      const cappedText = paidGain < theoreticalGain ? ' (banque vidée)' : '';
+      setLastResult({ type: 'win', msg: `🎉 GAGNÉ ! → +${paidGain} 🪙${cappedText}` });
     } else {
       setLastResult({ type: 'lose', msg: `😢 PERDU — Mise : ${mise} 🪙` });
     }
@@ -31,36 +35,26 @@ export default function GameZone({
 
   const handleNextTicket = () => {
     setLastResult(null);
-    setForceReveal(false);
     prepareNextTicket();
   };
 
-  const isTicketNew = !gameActive && currentGrid[0] === '';
+  const canStart = !gameActive;
+  const canGoNext = !gameActive;
 
   const handleMiseChange = (newMise) => {
-    if (gameActive) return; 
+    if (gameActive) return;
     setMise(newMise);
-    if (!isTicketNew) {
-      handleNextTicket();
-    }
-  };
-
-  const handleRevealAll = () => {
-    if (isTicketNew) {
-      startGame();
-    }
-    setForceReveal(true);
   };
 
   return (
     <div className="game-zone">
       <div className="game-zone-header">
-        <div>
+        {/* <div>
           <div className="section-title">Partie live</div>
           <div className="game-zone-title">
             {selectedGame ? selectedGame.name : 'Borne démo'}
           </div>
-        </div>
+        </div> */}
         <div className="game-zone-badges">
           <span className={`game-zone-chip ${isRemoteMode ? 'api' : 'demo'}`}>
             {isRemoteMode ? 'Synchronisé API' : 'Mode démo'}
@@ -77,16 +71,16 @@ export default function GameZone({
           <button className={`mise-btn ${mise === 2 ? 'active' : ''}`} onClick={() => handleMiseChange(2)}>2 🪙</button>
         </div>
       </div>
-
       <Ticket 
-        key={ticketId}
-        currentGrid={currentGrid} 
+        key={`${ticketId}-${spinId}`}
+        symbols={symbols}
         gameActive={gameActive} 
         handleGameEnd={onGameEndIntercept} 
         mise={mise} 
-        forceReveal={forceReveal}
         ticketId={ticketId}
-        startGame={startGame}
+        spinMode={spinMode}
+        onStartManual={onStartManual}
+        onStartAuto={onStartAuto}
       />
 
       {/* ZONE FIXE POUR LA BANNIÈRE (Utilisation de height au lieu de minHeight) */}
@@ -104,44 +98,53 @@ export default function GameZone({
           className="btn-play" 
           style={{ 
             flex: 1, 
-            position: 'relative', // Nécessaire pour le span absolute enfant
+            position: 'relative',
             height: '100%', 
-            background: isTicketNew ? '#5535a0' : '' 
+            background: canStart ? '' : '#5535a0'
           }} 
-          disabled={isTicketNew || gameActive}
-          onClick={(!isTicketNew && !gameActive) ? handleNextTicket : undefined}
+          disabled={!canStart}
+          onClick={onStartManual}
         >
-          {/* LE FIX ULTIME DU BOUTON : Le texte flotte de manière absolue et n'influence pas la taille du bouton */}
           <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {isTicketNew ? '👆 GRATTEZ POUR JOUER' : gameActive ? 'PARTIE EN COURS...' : '🎟️ TICKET SUIVANT'}
+            {gameActive ? 'PARTIE EN COURS...' : '🎰 MANUEL (ESPACE)'}
           </span>
         </button>
-        
+
         <button 
           className="btn-reveal" 
           style={{ 
             display: 'block', 
             height: '100%',
-            visibility: (isTicketNew || gameActive) ? 'visible' : 'hidden' 
+            visibility: canGoNext ? 'visible' : 'hidden'
           }} 
-          onClick={handleRevealAll}
+          onClick={onStartAuto}
+          disabled={!canStart}
         >
-            Révéler tout
+          🎯 AUTO (ENTRÉE)
         </button>
       </div>
 
-      <div className="gains-section">
+      <button
+        type="button"
+        className="next-ticket-btn"
+        onClick={handleNextTicket}
+        disabled={!canGoNext}
+      >
+        Manche suivante
+      </button>
+
+      {/* <div className="gains-section">
         <div className="gains-section-title">Gains possibles selon la mise</div>
         <div className="gains-grid">
           {Object.entries(gainsMap).map(([sym, mult]) => (
             <div key={sym} className="gain-item">
               <span className="gain-sym">{sym}{sym}{sym}</span>
-              {/* <span className="gain-x">x{mult}</span> */}
+              <span className="gain-x">x{mult}</span>
               <span className="gain-amount">+{mise * mult} 🪙</span>
             </div>
           ))}
         </div>
-      </div>
+      </div> */}
     </div>
   );
 }

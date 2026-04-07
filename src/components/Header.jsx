@@ -32,16 +32,30 @@ export default function Header({
   onSaveApiKey,
   onCreateGame,
   onSelectGame,
+  musicPlaying,
+  musicVolumeLabel,
+  onToggleMusic,
+  onCycleVolume,
 }) {
-  const [showSession, setShowSession] = useState(true);
+  const [showSession, setShowSession] = useState(false);
 
   return (
     <header className="app-header">
       <div className="header-brand">
-        <div className="logo">🎰 EpiBet</div>
-        <div className="header-meta">
-          <span className={`api-pill ${apiHealth.status}`}>{apiHealth.message}</span>
-          <span className="api-pill subdued">{apiBaseUrl}</span>
+        <div className="brand-stack">
+          <div className="logo">🎰 Moulibet</div>
+          <div className="header-meta">
+            <span className={`api-pill ${apiHealth.status}`}>{apiHealth.message}</span>
+            <span className="api-pill subdued">{apiBaseUrl}</span>
+          </div>
+        </div>
+        <div className="header-audio">
+          <button type="button" className="audio-chip" onClick={onToggleMusic}>
+            {musicPlaying ? 'Pause musique' : 'Lancer musique'}
+          </button>
+          <button type="button" className="audio-chip secondary" onClick={onCycleVolume}>
+            Volume {musicVolumeLabel}
+          </button>
         </div>
       </div>
 
@@ -60,7 +74,7 @@ export default function Header({
         </div>
 
         <button type="button" className="ghost-button" onClick={() => setShowSession((value) => !value)}>
-          {showSession ? 'Masquer' : 'Afficher'} la connexion
+          {showSession ? 'Réduire l’API' : 'Afficher l’API'}
         </button>
       </div>
 
